@@ -24,15 +24,39 @@ export default function FolderView({
 
   const isTeacher = !!user;
 
-  const triggerDownload = (e, url, name) => {
+  const triggerDownload = (e, file) => {
     e.stopPropagation();
     e.preventDefault();
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    
+    if (file.url && file.url.startsWith("mock://")) {
+      // Download mock presentation slides or mock DOCX document as a text outline file
+      let content = "";
+      if (file.slides) {
+        content = file.slides.map((s, idx) => `Slide ${idx + 1}: ${s.title}\n-------------------------\n${s.content}\n\n`).join("");
+      } else if (file.documentContent) {
+        content = file.documentContent.replace(/<[^>]*>/g, ""); // strip html
+      } else {
+        content = `Mock content outline for ${file.name}`;
+      }
+      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      const objectUrl = URL.createObjectURL(blob);
+      
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = file.name.replace(/\.[^/.]+$/, "") + "_outline.txt";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } else {
+      // For normal files (stored as Blobs in IndexedDB, or online URLs)
+      const link = document.createElement("a");
+      link.href = file.url;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   // Handle clicking outside to close context menu
@@ -254,7 +278,7 @@ export default function FolderView({
             {currentFolders.map(folder => (
               <div 
                 key={folder.id} 
-                className="folder-card"
+                className={`folder-card ${activeMenuId === folder.id && activeMenuType === "folder" ? 'has-open-menu' : ''}`}
                 onClick={() => setSelectedFolderId(folder.id)}
               >
                 <div className="folder-info">
@@ -336,7 +360,7 @@ export default function FolderView({
             {currentFiles.map(file => (
               <div 
                 key={file.id} 
-                className="file-card"
+                className={`file-card ${activeMenuId === file.id && activeMenuType === "file" ? 'has-open-menu' : ''}`}
                 onClick={() => onOpenFile(file)}
               >
                 {/* File Thumbnail Preview */}
@@ -378,7 +402,7 @@ export default function FolderView({
                           </button>
                           <button 
                             className="context-menu-item"
-                            onClick={(e) => { triggerDownload(e, file.url, file.name); setActiveMenuId(null); }}
+                            onClick={(e) => { triggerDownload(e, file); setActiveMenuId(null); }}
                           >
                             <Download size={14} /> Download
                           </button>

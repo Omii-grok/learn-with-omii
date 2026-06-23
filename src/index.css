@@ -1107,3 +1107,10 @@ body.smartboard-mode .viewer-modal-content {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* Fix context menu layering stacking overlaps */
+.folder-card.has-open-menu,
+.file-card.has-open-menu {
+  z-index: 50 !important;
+}
+
