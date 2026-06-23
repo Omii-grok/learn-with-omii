@@ -119,7 +119,14 @@ export default function App() {
     } else {
       // Mock Storage loading (persists in LocalStorage)
       setFolders(mockStorage.getFolders());
-      setFiles(mockStorage.getFiles());
+      
+      const rawFiles = mockStorage.getFiles();
+      mockStorage.resolveIndexedDBUrls(rawFiles).then(resolvedFiles => {
+        setFiles(resolvedFiles);
+      }).catch(err => {
+        console.error("Failed to resolve IndexedDB files:", err);
+        setFiles(rawFiles);
+      });
 
       // Attempt restoring mock session if saved
       const storedUser = localStorage.getItem("omii_user");
@@ -264,10 +271,18 @@ export default function App() {
           });
         }, 150);
 
-        await mockStorage.uploadFile(file, selectedFolderId, keywords);
+        const newUploadedFile = await mockStorage.uploadFile(file, selectedFolderId, keywords);
+        
+        // Resolve a fresh blob URL immediately for the session state
+        const blob = await mockStorage.getFileBlob(newUploadedFile.id);
+        const objectUrl = URL.createObjectURL(blob);
+        const resolvedUploadedFile = { ...newUploadedFile, url: objectUrl };
+
         setUploadProgress(100);
         clearInterval(mockInterval);
-        setFiles(mockStorage.getFiles());
+        
+        // Append resolved file to local React state
+        setFiles(prev => [...prev, resolvedUploadedFile]);
       }
     }
 
@@ -321,7 +336,7 @@ export default function App() {
       }
     } else {
       mockStorage.deleteFile(fileId);
-      setFiles(mockStorage.getFiles());
+      setFiles(prev => prev.filter(f => f.id !== fileId));
     }
   };
 

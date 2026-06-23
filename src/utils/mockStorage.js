@@ -1,4 +1,5 @@
 // Mock storage utility for running 'Learn With Omii IT' without a backend or when Firebase is not yet configured.
+// Uses IndexedDB to store the actual file blobs permanently in the user's browser.
 
 const PRELOADED_FOLDERS = [
   { id: "f-root-1", name: "Class 6", parentId: null, createdAt: new Date(2026, 5, 10).toISOString() },
@@ -87,6 +88,61 @@ const PRELOADED_FILES = [
   }
 ];
 
+// --- INDEXEDDB IMPLEMENTATION FOR MOCK STORAGE ---
+const DB_NAME = "OmiiLibraryDB";
+const STORE_NAME = "filesData";
+
+const initDB = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = (e) => {
+      resolve(e.target.result);
+    };
+    request.onerror = (e) => {
+      reject(e.target.error);
+    };
+  });
+};
+
+export const saveFileBlob = async (id, blob) => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.put(blob, id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const getFileBlob = async (id) => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(id);
+    request.onsuccess = (e) => resolve(e.target.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const deleteFileBlob = async (id) => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.delete(id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
 // Initialize localStorage if not present
 const getStoredData = () => {
   let folders = localStorage.getItem("omii_folders");
@@ -141,7 +197,6 @@ export const mockStorage = {
 
   deleteFolder: (id) => {
     const data = getStoredData();
-    // Delete target folder and recursive subfolders
     const folderIdsToDelete = [id];
     let checkLength = 0;
     while (folderIdsToDelete.length > checkLength) {
@@ -153,9 +208,7 @@ export const mockStorage = {
       });
     }
 
-    // Delete folders
     data.folders = data.folders.filter(f => !folderIdsToDelete.includes(f.id));
-    // Orphaned files go to root or get deleted. Let's make files in deleted folders go to root folder
     data.files = data.files.map(file => 
       folderIdsToDelete.includes(file.folderId) ? { ...file, folderId: null } : file
     );
@@ -170,56 +223,83 @@ export const mockStorage = {
     return data.files;
   },
 
-  uploadFile: (file, folderId = null, keywords = []) => {
-    return new Promise((resolve) => {
-      const data = getStoredData();
-      const ext = file.name.split('.').pop().toLowerCase();
-      
-      // Setup dynamic reader mock URL or fallbacks
-      let url = "mock://" + file.name;
-      let slides = null;
-      let documentContent = "";
+  uploadFile: async (file, folderId = null, keywords = []) => {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const fileId = "file-" + Date.now();
 
-      if (["jpg", "png", "jpeg"].includes(ext)) {
-        url = URL.createObjectURL(file);
-      } else if (ext === "pdf") {
-        url = URL.createObjectURL(file);
-      } else if (ext === "mp4") {
-        url = URL.createObjectURL(file);
-      } else if (["ppt", "pptx"].includes(ext)) {
-        slides = [
-          { title: file.name, content: "Mock Slides generated from your presentation upload.\nReady to teach on the smartboard!", bg: "linear-gradient(135deg, #1e40af 0%, #1e1b4b 100%)" },
-          { title: "Slide 2: Summary", content: "• High quality visual elements\n• Interactive Smart Board support\n• Drawing overlay features active", bg: "linear-gradient(135deg, #0d9488 0%, #115e59 100%)" },
-          { title: "Slide 3: Q & A", content: "Discussion topics and question boards.", bg: "linear-gradient(135deg, #4f46e5 0%, #312e81 100%)" }
-        ];
-      } else if (["doc", "docx"].includes(ext)) {
-        documentContent = `# ${file.name.replace(/\.[^/.]+$/, "")}\n\nThis is a mock DOCX preview content.\nYou uploaded a word document file of type .${ext} with size ${Math.round(file.size / 1024)} KB.\n\nReady for classroom study!`;
-      }
+    // Store the actual file blob in IndexedDB permanently
+    await saveFileBlob(fileId, file);
+    
+    let slides = null;
+    let documentContent = "";
 
-      const newFile = {
-        id: "file-" + Date.now(),
-        name: file.name,
-        type: ext,
-        size: file.size,
-        folderId,
-        keywords: keywords.length > 0 ? keywords : [ext, "uploaded"],
-        createdAt: new Date().toISOString(),
-        url,
-        slides,
-        documentContent
-      };
+    if (["ppt", "pptx"].includes(ext)) {
+      slides = [
+        { title: file.name, content: "Mock Slides generated from your presentation upload.\nReady to teach on the smartboard!", bg: "linear-gradient(135deg, #1e40af 0%, #1e1b4b 100%)" },
+        { title: "Slide 2: Summary", content: "• High quality visual elements\n• Interactive Smart Board support\n• Drawing overlay features active", bg: "linear-gradient(135deg, #0d9488 0%, #115e59 100%)" },
+        { title: "Slide 3: Q & A", content: "Discussion topics and question boards.", bg: "linear-gradient(135deg, #4f46e5 0%, #312e81 100%)" }
+      ];
+    } else if (["doc", "docx"].includes(ext)) {
+      documentContent = `# ${file.name.replace(/\.[^/.]+$/, "")}\n\nThis is a mock DOCX preview content.\nYou uploaded a word document file of type .${ext} with size ${Math.round(file.size / 1024)} KB.\n\nReady for classroom study!`;
+    }
 
-      // Emulate upload delay
-      setTimeout(() => {
-        data.files.push(newFile);
-        saveStoredData(data);
-        resolve(newFile);
-      }, 1500);
-    });
+    const data = getStoredData();
+    const newFile = {
+      id: fileId,
+      name: file.name,
+      type: ext,
+      size: file.size,
+      folderId,
+      keywords: keywords.length > 0 ? keywords : [ext, "uploaded"],
+      createdAt: new Date().toISOString(),
+      url: "indexeddb://" + fileId,
+      isBlobInIndexedDB: true,
+      slides,
+      documentContent
+    };
+
+    data.files.push(newFile);
+    saveStoredData(data);
+    return newFile;
   },
 
-  deleteFile: (id) => {
+  // Resolves the temporary blob URLs for files stored in IndexedDB upon startup
+  resolveIndexedDBUrls: async (filesList) => {
+    const updatedList = [];
+    for (const file of filesList) {
+      if (file.isBlobInIndexedDB) {
+        try {
+          const blob = await getFileBlob(file.id);
+          if (blob) {
+            const objectUrl = URL.createObjectURL(blob);
+            updatedList.push({ ...file, url: objectUrl });
+          } else {
+            updatedList.push(file);
+          }
+        } catch (e) {
+          console.error("Failed to resolve IndexedDB blob URL for file:", file.name, e);
+          updatedList.push(file);
+        }
+      } else {
+        updatedList.push(file);
+      }
+    }
+    return updatedList;
+  },
+
+  deleteFile: async (id) => {
     const data = getStoredData();
+    const file = data.files.find(f => f.id === id);
+    
+    // Clean up IndexedDB file blob
+    if (file && file.isBlobInIndexedDB) {
+      try {
+        await deleteFileBlob(id);
+      } catch (e) {
+        console.error("Failed to delete IndexedDB blob for file ID:", id, e);
+      }
+    }
+
     data.files = data.files.filter(f => f.id !== id);
     saveStoredData(data);
     return true;
@@ -230,6 +310,10 @@ export const mockStorage = {
     data.files = data.files.map(f => f.id === fileId ? { ...f, folderId: targetFolderId } : f);
     saveStoredData(data);
     return true;
+  },
+
+  getFileBlob: async (id) => {
+    return await getFileBlob(id);
   },
 
   // Auth mock
