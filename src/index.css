@@ -489,7 +489,7 @@ body.smartboard-mode .sidebar-footer {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow: visible;
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
@@ -512,6 +512,8 @@ body.smartboard-mode .sidebar-footer {
   position: relative;
   overflow: hidden;
   border-bottom: 1px solid var(--border-color);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
 }
 
 .file-preview img {

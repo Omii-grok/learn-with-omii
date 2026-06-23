@@ -340,6 +340,31 @@ export default function App() {
     }
   };
 
+  const handleResetAll = () => {
+    const confirmWipe = window.confirm("⚠️ WARNING: This will delete ALL custom folders and files you have created or uploaded. Are you sure you want to completely reset the library?");
+    if (!confirmWipe) return;
+
+    if (isFirebaseConfigured && db) {
+      alert("Database reset is only supported in offline local mode. For Firebase cloud, please delete documents via the Firebase console.");
+    } else {
+      localStorage.removeItem("omii_folders");
+      localStorage.removeItem("omii_files");
+      
+      // Clear IndexedDB
+      const dbName = "OmiiLibraryDB";
+      const storeName = "filesData";
+      const request = indexedDB.open(dbName, 1);
+      request.onsuccess = (e) => {
+        const db = e.target.result;
+        const transaction = db.transaction(storeName, "readwrite");
+        const store = transaction.objectStore(storeName);
+        store.clear();
+      };
+      
+      window.location.reload();
+    }
+  };
+
   return (
     <div className="app-container">
       {/* Sidebar Panel Layout */}
@@ -361,6 +386,7 @@ export default function App() {
         user={user}
         totalFiles={files.length}
         totalFolders={folders.length}
+        onResetAllClick={handleResetAll}
       />
 
       <div className="main-content">

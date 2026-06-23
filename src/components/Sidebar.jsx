@@ -1,5 +1,5 @@
 import React from "react";
-import { FolderPlus, Upload, LayoutDashboard, FolderOpen, Database, Lock, AlertTriangle } from "lucide-react";
+import { FolderPlus, Upload, LayoutDashboard, FolderOpen, Database, AlertTriangle, Trash2 } from "lucide-react";
 import { isFirebaseConfigured } from "../utils/firebase";
 
 export default function Sidebar({
@@ -9,7 +9,8 @@ export default function Sidebar({
   onUploadClick,
   user,
   totalFiles,
-  totalFolders
+  totalFolders,
+  onResetAllClick
 }) {
   const isTeacher = !!user;
 
@@ -62,6 +63,28 @@ export default function Sidebar({
           <div>Folders: {totalFolders}</div>
           <div>Files: {totalFiles}</div>
         </div>
+
+        <button 
+          onClick={onResetAllClick}
+          className="btn-outline" 
+          style={{ 
+            marginTop: '12px', 
+            padding: '6px 10px', 
+            fontSize: '11px', 
+            borderColor: '#ef4444', 
+            color: '#ef4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.05)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            width: '100%',
+            cursor: 'pointer'
+          }}
+          title="Delete all custom files and folders"
+        >
+          <Trash2 size={12} /> Clear Library (Reset)
+        </button>
 
         <div style={{
           marginTop: '16px',
