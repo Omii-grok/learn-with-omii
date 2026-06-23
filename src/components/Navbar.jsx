@@ -26,7 +26,7 @@ export default function Navbar({
         <Search className="search-icon" />
         <input
           type="text"
-          placeholder="Search by file name, folder, or keywords..."
+          placeholder="Search..."
           className="search-input"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
