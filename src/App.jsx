@@ -4,6 +4,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { mockStorage } from "./utils/mockStorage";
+import { getStorageConfig, uploadToGitHub } from "./utils/storageConfig";
 
 // UI Components
 import Navbar from "./components/Navbar";
@@ -14,6 +15,7 @@ import FileViewer from "./components/FileViewer";
 import AuthDialog from "./components/AuthDialog";
 import FolderDialog from "./components/FolderDialog";
 import MoveFileDialog from "./components/MoveFileDialog";
+import StorageSettingsDialog from "./components/StorageSettingsDialog";
 
 export default function App() {
   // Theme & Layout state
@@ -46,6 +48,7 @@ export default function App() {
   const [isMoveOpen, setIsMoveOpen] = useState(false);
 
   const [activeFileToView, setActiveFileToView] = useState(null);
+  const [isStorageSettingsOpen, setIsStorageSettingsOpen] = useState(false);
 
   // 1. Sync Theme with HTML Document Element
   useEffect(() => {
@@ -260,7 +263,9 @@ export default function App() {
           alert(`Failed to upload ${file.name}: ` + err.message);
         }
       } else {
-        // Mock Local Upload
+        const config = getStorageConfig();
+
+        // Mock Local Upload or GitHub Upload
         const mockInterval = setInterval(() => {
           setUploadProgress(prev => {
             if (prev >= 90) {
@@ -271,44 +276,15 @@ export default function App() {
           });
         }, 150);
 
-        try {
-          const newUploadedFile = await mockStorage.uploadFile(file, selectedFolderId, keywords);
-          
-          // Resolve a fresh blob URL immediately for the session state
-          let objectUrl = "";
-          if (newUploadedFile.isBlobInIndexedDB) {
-            try {
-              const blob = await mockStorage.getFileBlob(newUploadedFile.id);
-              if (blob) {
-                objectUrl = URL.createObjectURL(blob);
-              } else {
-                objectUrl = URL.createObjectURL(file);
-              }
-            } catch (blobErr) {
-              console.warn("Failed to get blob from DB, falling back to memory URL:", blobErr);
-              objectUrl = URL.createObjectURL(file);
-            }
-          } else {
-            objectUrl = URL.createObjectURL(file);
-          }
-
-          const resolvedUploadedFile = { ...newUploadedFile, url: objectUrl };
-
-          setUploadProgress(100);
-          clearInterval(mockInterval);
-          
-          // Append resolved file to local React state
-          setFiles(prev => [...prev, resolvedUploadedFile]);
-        } catch (uploadError) {
-          console.error("Local mock upload failed, applying session fallback:", uploadError);
-          clearInterval(mockInterval);
-          
+        if (config.type === "github") {
           try {
-            // Clean/safe fallback: Save metadata but skip DB blob creation
-            const fileId = "file-" + Date.now();
-            const ext = file.name.split('.').pop().toLowerCase();
-            const objectUrl = URL.createObjectURL(file);
+            // Upload directly to GitHub repository via REST API
+            const cdnUrl = await uploadToGitHub(file, config);
 
+            // Generate mock outlines/previews for PPT and Word
+            const ext = file.name.split('.').pop().toLowerCase();
+            const fileId = "file-" + Date.now();
+            
             let slides = null;
             let documentContent = "";
             if (["ppt", "pptx"].includes(ext)) {
@@ -321,7 +297,7 @@ export default function App() {
               documentContent = `# ${file.name.replace(/\.[^/.]+$/, "")}\n\nThis is a mock DOCX preview content.\nYou uploaded a word document file of type .${ext} with size ${Math.round(file.size / 1024)} KB.\n\nReady for classroom study!`;
             }
 
-            const fallbackFile = {
+            const newFile = {
               id: fileId,
               name: file.name,
               type: ext,
@@ -329,24 +305,106 @@ export default function App() {
               folderId: selectedFolderId,
               keywords: keywords.length > 0 ? keywords : [ext, "uploaded"],
               createdAt: new Date().toISOString(),
-              url: objectUrl,
+              url: cdnUrl,
               isBlobInIndexedDB: false,
+              isGitHubStored: true,
               slides,
               documentContent
             };
 
             // Stash metadata in local storage
             const data = localStorage.getItem("omii_files") ? JSON.parse(localStorage.getItem("omii_files")) : [];
-            data.push(fallbackFile);
+            data.push(newFile);
             localStorage.setItem("omii_files", JSON.stringify(data));
 
-            setFiles(prev => [...prev, fallbackFile]);
+            setFiles(prev => [...prev, newFile]);
             setUploadProgress(100);
+            clearInterval(mockInterval);
+          } catch (ghErr) {
+            console.error("GitHub upload failed:", ghErr);
+            clearInterval(mockInterval);
+            setUploadProgress(0);
+            alert(`GitHub Upload Failed: ${ghErr.message || ghErr}. Please check your Storage Settings in the sidebar.`);
+          }
+        } else {
+          // Standard local upload with try-catch
+          try {
+            const newUploadedFile = await mockStorage.uploadFile(file, selectedFolderId, keywords);
             
-            console.log("Successfully uploaded to session memory.");
-          } catch (fallbackError) {
-            console.error("Critical fallback failed:", fallbackError);
-            alert(`Failed to upload ${file.name}: ${uploadError.message || uploadError}`);
+            // Resolve a fresh blob URL immediately for the session state
+            let objectUrl = "";
+            if (newUploadedFile.isBlobInIndexedDB) {
+              try {
+                const blob = await mockStorage.getFileBlob(newUploadedFile.id);
+                if (blob) {
+                  objectUrl = URL.createObjectURL(blob);
+                } else {
+                  objectUrl = URL.createObjectURL(file);
+                }
+              } catch (blobErr) {
+                console.warn("Failed to get blob from DB, falling back to memory URL:", blobErr);
+                objectUrl = URL.createObjectURL(file);
+              }
+            } else {
+              objectUrl = URL.createObjectURL(file);
+            }
+
+            const resolvedUploadedFile = { ...newUploadedFile, url: objectUrl };
+
+            setUploadProgress(100);
+            clearInterval(mockInterval);
+            
+            // Append resolved file to local React state
+            setFiles(prev => [...prev, resolvedUploadedFile]);
+          } catch (uploadError) {
+            console.error("Local mock upload failed, applying session fallback:", uploadError);
+            clearInterval(mockInterval);
+            
+            try {
+              // Clean/safe fallback: Save metadata but skip DB blob creation
+              const fileId = "file-" + Date.now();
+              const ext = file.name.split('.').pop().toLowerCase();
+              const objectUrl = URL.createObjectURL(file);
+
+              let slides = null;
+              let documentContent = "";
+              if (["ppt", "pptx"].includes(ext)) {
+                slides = [
+                  { title: file.name, content: "Mock Slides generated from your presentation upload.\nReady to teach on the smartboard!", bg: "linear-gradient(135deg, #1e40af 0%, #1e1b4b 100%)" },
+                  { title: "Slide 2: Summary", content: "• High quality visual elements\n• Interactive Smart Board support\n• Drawing overlay features active", bg: "linear-gradient(135deg, #0d9488 0%, #115e59 100%)" },
+                  { title: "Slide 3: Q & A", content: "Discussion topics and question boards.", bg: "linear-gradient(135deg, #4f46e5 0%, #312e81 100%)" }
+                ];
+              } else if (["doc", "docx"].includes(ext)) {
+                documentContent = `# ${file.name.replace(/\.[^/.]+$/, "")}\n\nThis is a mock DOCX preview content.\nYou uploaded a word document file of type .${ext} with size ${Math.round(file.size / 1024)} KB.\n\nReady for classroom study!`;
+              }
+
+              const fallbackFile = {
+                id: fileId,
+                name: file.name,
+                type: ext,
+                size: file.size,
+                folderId: selectedFolderId,
+                keywords: keywords.length > 0 ? keywords : [ext, "uploaded"],
+                createdAt: new Date().toISOString(),
+                url: objectUrl,
+                isBlobInIndexedDB: false,
+                slides,
+                documentContent
+              };
+
+              // Stash metadata in local storage
+              const data = localStorage.getItem("omii_files") ? JSON.parse(localStorage.getItem("omii_files")) : [];
+              data.push(fallbackFile);
+              localStorage.setItem("omii_files", JSON.stringify(data));
+
+              setFiles(prev => [...prev, fallbackFile]);
+              setUploadProgress(100);
+              
+              console.log("Successfully uploaded to session memory.");
+            } catch (fallbackError) {
+              console.error("Critical fallback failed:", fallbackError);
+              alert(`Failed to upload ${file.name}: ${uploadError.message || uploadError}`);
+            }
           }
         }
       }
@@ -453,6 +511,7 @@ export default function App() {
         totalFiles={files.length}
         totalFolders={folders.length}
         onResetAllClick={handleResetAll}
+        onStorageSettingsClick={() => setIsStorageSettingsOpen(true)}
       />
 
       <div className="main-content">
@@ -552,6 +611,13 @@ export default function App() {
         isOpen={!!activeFileToView}
         onClose={() => setActiveFileToView(null)}
         isSmartBoard={isSmartBoard}
+      />
+
+      {/* Cloud & GitHub Storage Configuration Dialog */}
+      <StorageSettingsDialog 
+        isOpen={isStorageSettingsOpen}
+        onClose={() => setIsStorageSettingsOpen(false)}
+        onSave={(config) => console.log("New storage configuration applied:", config)}
       />
     </div>
   );
