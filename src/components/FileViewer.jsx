@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { X, Maximize2, Minimize2, Edit3, CircleOff, Presentation, ArrowLeft, ArrowRight, FileText, Download } from "lucide-react";
 import WhiteboardOverlay from "./WhiteboardOverlay";
 import { isFirebaseConfigured } from "../utils/firebase";
+import { downloadFile } from "../utils/downloadHelper";
 
 export default function FileViewer({ file, isOpen, onClose, isSmartBoard }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -10,13 +11,11 @@ export default function FileViewer({ file, isOpen, onClose, isSmartBoard }) {
   const viewerRef = useRef(null);
 
   const handleDownload = (e) => {
-    e.stopPropagation();
-    const link = document.createElement("a");
-    link.href = file.url;
-    link.download = file.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    downloadFile(file);
   };
 
   useEffect(() => {
@@ -199,16 +198,13 @@ export default function FileViewer({ file, isOpen, onClose, isSmartBoard }) {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', color: '#ffffff', padding: '40px' }}>
         <FileText size={48} style={{ color: 'var(--text-muted)' }} />
         <span>Preview is not supported for this file type.</span>
-        <a 
-          href={file.url} 
-          download={file.name} 
-          target="_blank" 
-          rel="noreferrer"
+        <button 
+          onClick={handleDownload}
           className="btn-primary" 
-          style={{ width: 'auto', padding: '8px 16px' }}
+          style={{ width: 'auto', padding: '8px 16px', border: 'none', cursor: 'pointer' }}
         >
           Download File
-        </a>
+        </button>
       </div>
     );
   };

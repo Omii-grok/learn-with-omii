@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Folder, MoreVertical, Trash2, Edit, Move, FileText, ArrowLeft, Upload, File, Eye, Download } from "lucide-react";
+import { downloadFile } from "../utils/downloadHelper";
 
 export default function FolderView({
   files,
@@ -27,36 +28,7 @@ export default function FolderView({
   const triggerDownload = (e, file) => {
     e.stopPropagation();
     e.preventDefault();
-    
-    if (file.url && file.url.startsWith("mock://")) {
-      // Download mock presentation slides or mock DOCX document as a text outline file
-      let content = "";
-      if (file.slides) {
-        content = file.slides.map((s, idx) => `Slide ${idx + 1}: ${s.title}\n-------------------------\n${s.content}\n\n`).join("");
-      } else if (file.documentContent) {
-        content = file.documentContent.replace(/<[^>]*>/g, ""); // strip html
-      } else {
-        content = `Mock content outline for ${file.name}`;
-      }
-      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-      const objectUrl = URL.createObjectURL(blob);
-      
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = file.name.replace(/\.[^/.]+$/, "") + "_outline.txt";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(objectUrl);
-    } else {
-      // For normal files (stored as Blobs in IndexedDB, or online URLs)
-      const link = document.createElement("a");
-      link.href = file.url;
-      link.download = file.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    downloadFile(file);
   };
 
   // Handle clicking outside to close context menu
