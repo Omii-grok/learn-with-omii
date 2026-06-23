@@ -21,34 +21,14 @@ export default function Sidebar({
 
       {/* Main Teacher Actions */}
       <div className="sidebar-upload-container">
-        {isTeacher ? (
-          <>
-            <button className="btn-primary" onClick={onUploadClick} title="Upload New File">
-              <Upload size={18} />
-              <span className="menu-item-text">Upload File</span>
-            </button>
-            <button className="btn-outline" onClick={onNewFolderClick} title="Create New Folder">
-              <FolderPlus size={18} />
-              <span className="menu-item-text">New Folder</span>
-            </button>
-          </>
-        ) : (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-            padding: '12px',
-            backgroundColor: 'var(--bg-tertiary)',
-            borderRadius: '8px',
-            fontSize: '11px',
-            color: 'var(--text-secondary)',
-            alignItems: 'center',
-            textAlign: 'center'
-          }} className="menu-item-text">
-            <Lock size={16} style={{ color: 'var(--text-muted)' }} />
-            <span>Login as Teacher to manage files & folders</span>
-          </div>
-        )}
+        <button className="btn-primary" onClick={onUploadClick} title="Upload New File">
+          <Upload size={18} />
+          <span className="menu-item-text">Upload File</span>
+        </button>
+        <button className="btn-outline" onClick={onNewFolderClick} title="Create New Folder">
+          <FolderPlus size={18} />
+          <span className="menu-item-text">New Folder</span>
+        </button>
       </div>
 
       {/* Navigation */}

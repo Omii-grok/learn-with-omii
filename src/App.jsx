@@ -26,7 +26,11 @@ export default function App() {
   // Data states
   const [folders, setFolders] = useState([]);
   const [files, setFiles] = useState([]);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState({
+    uid: "teacher-admin",
+    displayName: "Omii IT Teacher",
+    isAdmin: true
+  });
 
   // Upload tracking states
   const [uploadingFile, setUploadingFile] = useState(null);
@@ -78,8 +82,6 @@ export default function App() {
             displayName: firebaseUser.displayName || "Teacher",
             isAdmin: true
           });
-        } else {
-          setUser(null);
         }
       });
 

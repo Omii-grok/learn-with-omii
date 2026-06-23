@@ -59,45 +59,7 @@ export default function Navbar({
           {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
         </button>
 
-        {/* Login / Profile */}
-        {user ? (
-          <div className="user-avatar-widget" style={{ gap: '8px' }}>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--accent-primary)',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: '600',
-              fontSize: '12px'
-            }}>
-              {user.displayName.charAt(0)}
-            </div>
-            <span style={{ fontSize: '13px', fontWeight: '500' }} className="menu-item-text">
-              Teacher
-            </span>
-            <button 
-              className="action-btn" 
-              onClick={onLogoutClick} 
-              title="Sign Out"
-              style={{ marginLeft: '4px' }}
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
-        ) : (
-          <button 
-            className="btn-primary" 
-            onClick={onLoginClick}
-            style={{ padding: '8px 16px', fontSize: '13px', width: 'auto', borderRadius: '8px' }}
-          >
-            <LogIn size={16} />
-            <span>Teacher Login</span>
-          </button>
-        )}
+        {/* Authentication removed - admin capabilities active by default */}
       </div>
     </nav>
   );
