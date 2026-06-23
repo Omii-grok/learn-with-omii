@@ -94,53 +94,108 @@ const STORE_NAME = "filesData";
 
 const initDB = () => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
+    try {
+      if (typeof window === "undefined" || !window.indexedDB) {
+        reject(new Error("IndexedDB is not supported or accessible in this environment."));
+        return;
       }
-    };
-    request.onsuccess = (e) => {
-      resolve(e.target.result);
-    };
-    request.onerror = (e) => {
-      reject(e.target.error);
-    };
+      
+      const request = indexedDB.open(DB_NAME, 1);
+      
+      request.onblocked = () => {
+        console.warn("IndexedDB connection is blocked by another connection.");
+        reject(new Error("IndexedDB connection blocked."));
+      };
+
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME);
+        }
+      };
+
+      request.onsuccess = (e) => {
+        resolve(e.target.result);
+      };
+
+      request.onerror = (e) => {
+        reject(e.target.error || new Error("IndexedDB open request failed."));
+      };
+    } catch (err) {
+      reject(err);
+    }
   });
 };
 
 export const saveFileBlob = async (id, blob) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(blob, id);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = db.transaction(STORE_NAME, "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.put(blob, id);
+        
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error || new Error("Put blob failed."));
+        
+        transaction.onabort = () => reject(new Error("Transaction aborted."));
+        transaction.onerror = () => reject(transaction.error || new Error("Transaction error."));
+      } catch (txErr) {
+        reject(txErr);
+      }
+    });
+  } catch (err) {
+    console.error("saveFileBlob failed:", err);
+    throw err;
+  }
 };
 
 export const getFileBlob = async (id) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readonly");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(id);
-    request.onsuccess = (e) => resolve(e.target.result);
-    request.onerror = () => reject(request.error);
-  });
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = db.transaction(STORE_NAME, "readonly");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get(id);
+        
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = () => reject(request.error || new Error("Get blob failed."));
+        
+        transaction.onerror = () => reject(transaction.error || new Error("Transaction error."));
+      } catch (txErr) {
+        reject(txErr);
+      }
+    });
+  } catch (err) {
+    console.error("getFileBlob failed for ID:", id, err);
+    throw err;
+  }
 };
 
 export const deleteFileBlob = async (id) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(id);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = db.transaction(STORE_NAME, "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.delete(id);
+        
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error || new Error("Delete blob failed."));
+        
+        transaction.onabort = () => reject(new Error("Transaction aborted."));
+        transaction.onerror = () => reject(transaction.error || new Error("Transaction error."));
+      } catch (txErr) {
+        reject(txErr);
+      }
+    });
+  } catch (err) {
+    console.error("deleteFileBlob failed for ID:", id, err);
+    throw err;
+  }
 };
 
 // Initialize localStorage if not present
@@ -226,9 +281,15 @@ export const mockStorage = {
   uploadFile: async (file, folderId = null, keywords = []) => {
     const ext = file.name.split('.').pop().toLowerCase();
     const fileId = "file-" + Date.now();
+    let isSavedToDB = false;
 
     // Store the actual file blob in IndexedDB permanently
-    await saveFileBlob(fileId, file);
+    try {
+      await saveFileBlob(fileId, file);
+      isSavedToDB = true;
+    } catch (dbErr) {
+      console.warn("IndexedDB storage failed, creating local file without IndexedDB backup:", dbErr);
+    }
     
     let slides = null;
     let documentContent = "";
@@ -252,8 +313,8 @@ export const mockStorage = {
       folderId,
       keywords: keywords.length > 0 ? keywords : [ext, "uploaded"],
       createdAt: new Date().toISOString(),
-      url: "indexeddb://" + fileId,
-      isBlobInIndexedDB: true,
+      url: isSavedToDB ? "indexeddb://" + fileId : "memory://" + fileId,
+      isBlobInIndexedDB: isSavedToDB,
       slides,
       documentContent
     };
