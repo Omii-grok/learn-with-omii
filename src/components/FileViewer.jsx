@@ -1,12 +1,23 @@
 import React, { useState, useEffect, useRef } from "react";
 import { X, Maximize2, Minimize2, Edit3, CircleOff, Presentation, ArrowLeft, ArrowRight, FileText, Download } from "lucide-react";
 import WhiteboardOverlay from "./WhiteboardOverlay";
+import { isFirebaseConfigured } from "../utils/firebase";
 
 export default function FileViewer({ file, isOpen, onClose, isSmartBoard }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isAnnotating, setIsAnnotating] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const viewerRef = useRef(null);
+
+  const handleDownload = (e) => {
+    e.stopPropagation();
+    const link = document.createElement("a");
+    link.href = file.url;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   useEffect(() => {
     // Reset state on open
@@ -97,7 +108,7 @@ export default function FileViewer({ file, isOpen, onClose, isSmartBoard }) {
 
     // 3. PPT / PPTX (Presentation)
     if (["ppt", "pptx"].includes(ext)) {
-      if (!isMockUrl(file.url)) {
+      if (isFirebaseConfigured && !isMockUrl(file.url)) {
         // Real online mode: Embed via Microsoft Web Viewer
         const officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.url)}`;
         return (
@@ -151,7 +162,7 @@ export default function FileViewer({ file, isOpen, onClose, isSmartBoard }) {
 
     // 4. DOC / DOCX (Word Document)
     if (["doc", "docx"].includes(ext)) {
-      if (!isMockUrl(file.url)) {
+      if (isFirebaseConfigured && !isMockUrl(file.url)) {
         // Real online mode: Embed via Microsoft Web Viewer
         const officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.url)}`;
         return (
@@ -257,17 +268,14 @@ export default function FileViewer({ file, isOpen, onClose, isSmartBoard }) {
             </button>
 
             {/* Download Button */}
-            <a 
-              href={file.url} 
-              download={file.name} 
-              target="_blank" 
-              rel="noreferrer"
+            <button 
               className="action-btn"
-              style={{ color: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={handleDownload}
+              style={{ color: '#f8fafc', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               title="Download File"
             >
               <Download size={20} />
-            </a>
+            </button>
 
             {/* Presentation fullscreen switch */}
             <button 

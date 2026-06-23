@@ -24,6 +24,17 @@ export default function FolderView({
 
   const isTeacher = !!user;
 
+  const triggerDownload = (e, url, name) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Handle clicking outside to close context menu
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -365,17 +376,12 @@ export default function FolderView({
                           >
                             <Eye size={14} /> Open
                           </button>
-                          <a 
-                            href={file.url} 
-                            download={file.name} 
-                            target="_blank" 
-                            rel="noreferrer"
+                          <button 
                             className="context-menu-item"
-                            style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: '10px' }}
-                            onClick={() => setActiveMenuId(null)}
+                            onClick={(e) => { triggerDownload(e, file.url, file.name); setActiveMenuId(null); }}
                           >
                             <Download size={14} /> Download
-                          </a>
+                          </button>
                           {isTeacher && (
                             <>
                               <button 
